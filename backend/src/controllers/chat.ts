@@ -1,9 +1,15 @@
 import { Response } from "express";
 import OpenAI from "openai";
-import { Chat } from "../models/Chat";
-import { AuthRequest } from "../types";
+import { Chat } from "../models/Chat.js";
+import { AuthRequest } from "../types/index.js";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+if (!OPENAI_API_KEY) {
+  console.error("FATAL: OPENAI_API_KEY environment variable is not set");
+  process.exit(1);
+}
+
+const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
 export async function getChats(req: AuthRequest, res: Response) {
   const chats = await Chat.find({ userId: req.userId }).sort({ updatedAt: -1 });
@@ -35,8 +41,8 @@ export async function sendMessage(req: AuthRequest, res: Response) {
 
   try {
     const completion = await openai.chat.completions.create({
-      model: "gpt-4",
-      messages: chat.messages.map((m: any) => ({ role: m.role, content: m.content })),
+      model: "gpt-4o",
+      messages: chat.messages.map((m: { role: string; content: string }) => ({ role: m.role, content: m.content })),
       max_tokens: 1000,
     });
 
@@ -45,7 +51,8 @@ export async function sendMessage(req: AuthRequest, res: Response) {
     await chat.save();
 
     res.json({ reply, chat });
-  } catch (err: any) {
+  } catch (err) {
+    console.error("AI service error:", err);
     res.status(500).json({ error: "AI service error. Check your API key." });
   }
 }

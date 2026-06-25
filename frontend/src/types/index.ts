@@ -1,9 +1,3 @@
-export interface User {
-  id: string;
-  email: string;
-  name: string;
-}
-
 export interface Message {
   _id?: string;
   role: "user" | "assistant";

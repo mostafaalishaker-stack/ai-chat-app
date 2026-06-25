@@ -6,7 +6,7 @@
   body {
     font-family: 'Inter', sans-serif;
   }
-  .dark body {
+  body.dark {
     @apply bg-gray-900 text-gray-100;
   }
 }

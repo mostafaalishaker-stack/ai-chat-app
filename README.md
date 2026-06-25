@@ -11,14 +11,14 @@ An intelligent chat application powered by OpenAI GPT with user authentication, 
 | Database | MongoDB (Mongoose ODM) |
 | AI | OpenAI GPT-4 API |
 | Auth | JWT (bcrypt + jsonwebtoken) |
-| Deployment | Vercel (frontend) + Railway (backend) |
+| Deployment | Vercel (frontend) + Railway (backend) — see `vercel.json` and `railway.json` in repo |
 
 ## Features
 
 - User authentication (register/login)
 - AI-powered chat with GPT-4
 - Multi-session chat history
-- Streaming AI responses
+- AI response streaming via OpenAI SDK
 - Message persistence
 - Responsive design with dark mode
 

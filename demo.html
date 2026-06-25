@@ -2,12 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+  <meta name="description" content="Interactive demo of AI Chat App featuring multi-session GPT-4 chat with real-time AI responses. React + Node.js + OpenAI portfolio project.">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AI Chat Demo</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="preconnect" href="https://cdnjs.cloudflare.com">
+<link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" media="print" onload="this.media='all'">
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: 'Inter', sans-serif; background: #0b1120; color: #e2e8f0; min-height: 100vh; }
@@ -29,6 +32,7 @@ a:hover { text-decoration: underline; }
 .btn-primary:hover { background: #2563eb; }
 .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
 .error-msg { color: #ef4444; font-size: 13px; text-align: center; margin-top: 12px; display: none; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
 
 /* App Layout */
 #app-screen { display: none; height: calc(100vh - 50px); }
@@ -95,7 +99,7 @@ a:hover { text-decoration: underline; }
 </head>
 <body>
 
-<a href="index.html" class="back-link"><i class="fas fa-arrow-left"></i> Back to Project</a>
+<a href="../index.html" class="back-link"><i class="fas fa-arrow-left"></i> Back to Portfolio</a>
 
 <!-- Login Screen -->
 <div id="login-screen">
@@ -111,7 +115,7 @@ a:hover { text-decoration: underline; }
       <input type="password" id="password-input" placeholder="Enter your password" autocomplete="current-password">
     </div>
     <button class="btn-primary" id="signin-btn"><i class="fas fa-arrow-right-to-bracket" style="margin-right:8px;"></i>Sign In</button>
-    <div class="error-msg" id="login-error">Please enter email and password</div>
+    <div class="error-msg" id="login-error" role="alert">Please enter email and password</div>
   </div>
 </div>
 
@@ -127,10 +131,11 @@ a:hover { text-decoration: underline; }
     </div>
     <div class="main-area">
       <div class="chat-header">
-        <button class="sidebar-toggle" id="sidebar-toggle"><i class="fas fa-bars"></i></button>
+        <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle sidebar"><i class="fas fa-bars"></i></button>
         <h2 id="current-chat-title">Chat</h2>
         <button class="edit-name" id="edit-name-btn" title="Rename chat"><i class="fas fa-pencil"></i></button>
-        <input type="text" id="rename-input" style="display:none">
+        <label for="rename-input" class="sr-only">Rename chat</label>
+        <input type="text" id="rename-input" style="display:none" aria-label="Rename chat">
       </div>
       <div class="messages-area" id="messages-area"></div>
       <div class="input-bar">
@@ -331,14 +336,29 @@ document.getElementById('signin-btn').addEventListener('click', () => {
   const email = document.getElementById('email-input').value.trim();
   const password = document.getElementById('password-input').value.trim();
   if (!email || !password) {
-    document.getElementById('login-error').style.display = 'block';
+    const errEl = document.getElementById('login-error');
+    errEl.textContent = 'Please enter email and password';
+    errEl.style.display = 'block';
     return;
   }
+  if (password.length < 4) {
+    const errEl = document.getElementById('login-error');
+    errEl.textContent = 'Password must be at least 4 characters';
+    errEl.style.display = 'block';
+    return;
+  }
+  const btn = document.getElementById('signin-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin" style="margin-right:8px;"></i>Signing in...';
   document.getElementById('login-error').style.display = 'none';
-  document.getElementById('login-screen').style.display = 'none';
-  document.getElementById('app-screen').style.display = 'block';
-  renderChatHistory();
-  renderMessages();
+  setTimeout(() => {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-arrow-right-to-bracket" style="margin-right:8px;"></i>Sign In';
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app-screen').style.display = 'block';
+    renderChatHistory();
+    renderMessages();
+  }, 600);
 });
 
 document.getElementById('email-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('password-input').focus(); });
@@ -381,7 +401,16 @@ editBtn.addEventListener('click', () => {
 });
 
 renameInput.addEventListener('blur', finishRename);
-renameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') finishRename(); });
+renameInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') finishRename();
+  if (e.key === 'Escape') cancelRename();
+});
+
+function cancelRename() {
+  titleEl.style.display = 'inline';
+  editBtn.style.display = 'inline-block';
+  renameInput.style.display = 'none';
+}
 
 function finishRename() {
   const val = renameInput.value.trim();

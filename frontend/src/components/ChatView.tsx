@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import toast from "react-hot-toast";
 import api from "../api/client";
 import { Chat, Message } from "../types";
 
@@ -11,10 +12,18 @@ export function ChatView({ onLogout }: Props) {
   const [activeChat, setActiveChat] = useState<Chat | null>(null);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
   const msgEnd = useRef<HTMLDivElement>(null);
+  const chatListRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    api.get("/chats").then((res) => setChats(res.data));
+    api.get("/chats").then((res) => {
+      setChats(res.data);
+      setFetchError(false);
+    }).catch(() => {
+      setFetchError(true);
+      toast.error("Failed to load chats");
+    });
   }, []);
 
   useEffect(() => {
@@ -26,15 +35,30 @@ export function ChatView({ onLogout }: Props) {
   }
 
   async function newChat() {
-    const { data } = await api.post("/chats");
-    setChats([data, ...chats]);
-    setActiveChat(data);
+    try {
+      const { data } = await api.post("/chats");
+      setChats([data, ...chats]);
+      setActiveChat(data);
+    } catch {
+      toast.error("Failed to create new chat");
+    }
   }
 
   async function deleteChat(id: string) {
-    await api.delete(`/chats/${id}`);
+    const prevChats = [...chats];
+    const prevActive = activeChat;
     setChats(chats.filter((c) => c._id !== id));
-    if (activeChat?._id === id) setActiveChat(null);
+    if (activeChat?._id === id) {
+      const remaining = chats.filter((c) => c._id !== id);
+      setActiveChat(remaining.length > 0 ? remaining[0] : null);
+    }
+    try {
+      await api.delete(`/chats/${id}`);
+    } catch {
+      setChats(prevChats);
+      setActiveChat(prevActive);
+      toast.error("Failed to delete chat");
+    }
   }
 
   async function sendMessage() {
@@ -47,20 +71,27 @@ export function ChatView({ onLogout }: Props) {
     setActiveChat((prev) => prev ? { ...prev, messages: [...prev.messages, tempMsg] } : prev);
 
     try {
-      const { data } = await api.post("/chats/message", { chatId: activeChat._id, message });
+      const { data } = await api.post(`/chats/${activeChat._id}/messages`, { message });
       const updated = data.chat;
       setActiveChat(updated);
       setChats(chats.map((c) => (c._id === updated._id ? updated : c)));
     } catch {
-      alert("Error sending message");
+      setActiveChat((prev) => prev ? { ...prev, messages: prev.messages.filter(m => m !== tempMsg) } : prev);
+      toast.error("Error sending message");
     } finally {
       setLoading(false);
     }
   }
 
+  const handleChatKeyDown = useCallback((e: React.KeyboardEvent, chat: Chat) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      selectChat(chat);
+    }
+  }, []);
+
   return (
     <div className="h-screen flex bg-gray-50 dark:bg-gray-900">
-      {/* Sidebar */}
       <div className="w-72 bg-white dark:bg-gray-800 border-r dark:border-gray-700 flex flex-col">
         <div className="p-4 border-b dark:border-gray-700">
           <button onClick={newChat}
@@ -68,16 +99,21 @@ export function ChatView({ onLogout }: Props) {
             <i className="fas fa-plus"></i> New Chat
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto p-2 space-y-1">
+        <div className="flex-1 overflow-y-auto p-2 space-y-1" ref={chatListRef} role="listbox" aria-label="Chat history">
           {chats.map((chat) => (
             <div
               key={chat._id}
               onClick={() => selectChat(chat)}
+              onKeyDown={(e) => handleChatKeyDown(e, chat)}
+              role="option"
+              tabIndex={0}
+              aria-selected={activeChat?._id === chat._id}
               className={`p-3 rounded-lg cursor-pointer flex items-center justify-between group text-sm transition
                 ${activeChat?._id === chat._id ? "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300" : "hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-300"}`}
             >
               <span className="truncate flex-1"><i className="fas fa-message mr-2 text-xs"></i>{chat.title}</span>
               <button onClick={(e) => { e.stopPropagation(); deleteChat(chat._id); }}
+                aria-label={`Delete ${chat.title}`}
                 className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition">
                 <i className="fas fa-trash text-xs"></i>
               </button>
@@ -85,13 +121,13 @@ export function ChatView({ onLogout }: Props) {
           ))}
         </div>
         <div className="p-4 border-t dark:border-gray-700">
-          <button onClick={onLogout} className="text-sm text-gray-500 hover:text-red-600 dark:text-gray-400">
+          <button onClick={onLogout} aria-label="Logout"
+            className="text-sm text-gray-500 hover:text-red-600 dark:text-gray-400">
             <i className="fas fa-sign-out-alt mr-2"></i> Logout
           </button>
         </div>
       </div>
 
-      {/* Main Chat */}
       <div className="flex-1 flex flex-col">
         {activeChat ? (
           <>
@@ -100,7 +136,7 @@ export function ChatView({ onLogout }: Props) {
                 <div className="h-full flex flex-col items-center justify-center text-gray-400 dark:text-gray-500">
                   <i className="fas fa-robot text-7xl mb-4 opacity-30"></i>
                   <p className="text-xl font-medium">Ask me anything!</p>
-                  <p className="text-sm mt-1">Powered by OpenAI GPT-4</p>
+                  <p className="text-sm mt-1">Powered by OpenAI GPT-4o</p>
                 </div>
               )}
               {activeChat.messages.map((msg, i) => (
@@ -146,6 +182,7 @@ export function ChatView({ onLogout }: Props) {
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && sendMessage()}
                   placeholder="Type your message..."
+                  aria-label="Message input"
                   className="flex-1 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-xl px-5 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-400"
                 />
                 <button onClick={sendMessage} disabled={loading}
